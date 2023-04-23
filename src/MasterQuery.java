@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.rmi.*;
 import java.rmi.server.*;
 import java.security.KeyPair;
+import java.security.PublicKey;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.Executors;
@@ -25,7 +26,7 @@ public class MasterQuery extends UnicastRemoteObject implements Master
     // Hashmap to manage encryption keys for each file
     private static Map<String, SecretKey> secretKeys;
     // Hashmap to store RSA public and private keys for each user
-    private static Map<String, KeyPair> rsaKeys;
+    private static Map<String, PublicKey> peerRSAPublicKey;
     // Replication Factor fetched from property file
     private Integer replicaFactor;
 
@@ -39,7 +40,7 @@ public class MasterQuery extends UnicastRemoteObject implements Master
         permissions = new HashMap<>();
         secretKeys = new HashMap<>();
         Properties prop = new Properties();
-        rsaKeys = new HashMap<>();
+        peerRSAPublicKey = new HashMap<>();
 //        prop.load(new FileInputStream("../resources/config.properties"));
         //Reading each property value
         //this.replicaFactor = Integer.parseInt(prop.getProperty("REPLICA_FACTOR"));
@@ -51,7 +52,7 @@ public class MasterQuery extends UnicastRemoteObject implements Master
     private final static ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
 
     @Override
-    public Map.Entry<String, SecretKey> read(String fileName, String uri) throws RemoteException {
+    public Map.Entry<String, String> read(String fileName, String uri) throws RemoteException {
         try{
             String message;
             if(!hasFile(fileName)) {
@@ -67,7 +68,8 @@ public class MasterQuery extends UnicastRemoteObject implements Master
 
             List<String> paths = getPaths(fileName);
             String peerPath = paths.get(0);
-            SecretKey key = secretKeys.get(fileName);
+            String key = Base64.getEncoder().encodeToString(secretKeys.get(fileName).getEncoded());
+            key = RSA.encrypt(key, peerRSAPublicKey.get(uri));
             return new AbstractMap.SimpleEntry<>(peerPath, key);
         }
         catch(Exception e){
@@ -77,21 +79,19 @@ public class MasterQuery extends UnicastRemoteObject implements Master
     }
 
     @Override
-    public KeyPair generateRSAKeyPair(String uri)throws RemoteException {
+    public boolean updatePublicKey(String uri, PublicKey publicKey)throws RemoteException {
         try{
-            KeyPair keyPair = RSA.generateKeyPair();
-
-            if(rsaKeys.containsKey(uri)){
-                System.out.println("Successfully updated the rsa key pair");
+            if(peerRSAPublicKey.containsKey(uri)){
+                System.out.println("Successfully updated the RSA public key");
             } else {
-                System.out.println("Successfully created new RSA key pair");
+                System.out.println("Successfully recieved peer RSA public key");
             }
-            rsaKeys.put(uri, keyPair);
-            return keyPair;
+            peerRSAPublicKey.put(uri, publicKey);
+            return true;
         }catch (Exception e){
             System.out.println(e);
+            return false;
         }
-        return null;
     }
 
     @Override
@@ -108,7 +108,7 @@ public class MasterQuery extends UnicastRemoteObject implements Master
             isDeleted.put(fileName, false);
             secretKeys.put(fileName, AES.getSecretKey());
             String key = Base64.getEncoder().encodeToString(secretKeys.get(fileName).getEncoded());
-            key = RSA.encrypt(key, rsaKeys.get(uri).getPublic());
+            key = RSA.encrypt(key, peerRSAPublicKey.get(uri));
             System.out.println(fileName + " data updated in the lookup table");
             return new AbstractMap.SimpleEntry<>(peersURI, key);
         } catch (Exception io){
@@ -116,27 +116,6 @@ public class MasterQuery extends UnicastRemoteObject implements Master
         }
         return null;
     }
-
-    @Override
-    public Set<String> createDirectory(String directoryName, String uri) throws RemoteException {
-        try {
-            if (hasFile(directoryName)){
-                System.out.println(directoryName + " already exist");
-                return null;
-            }
-            Set<String> peersURI = getPaths_RF();
-            Permissions permissionObj = new PermissionsImpl(directoryName, uri);
-            permissions.put(directoryName, permissionObj);
-            lookup.put(directoryName, peersURI);
-            isDeleted.put(directoryName, false);
-            System.out.println(directoryName + " data updated in the lookup table");
-            return peersURI;
-        } catch (Exception io){
-            io.printStackTrace();
-        }
-        return null;
-    }
-
 
     @Override
     public String delegatePermission(String fileName, String uri, String otherURI, String permission) throws RemoteException {
@@ -220,7 +199,7 @@ public class MasterQuery extends UnicastRemoteObject implements Master
     }
 
     @Override
-    public Map.Entry<Map.Entry<String, SecretKey>, Set<String>> update(String fileName, String uri) throws RemoteException {
+    public Map.Entry<Map.Entry<String, String>, Set<String>> update(String fileName, String uri) throws RemoteException {
         try{
             Map.Entry<Map.Entry<String, String>, Set<String>> response;
             String message = "";
@@ -238,7 +217,8 @@ public class MasterQuery extends UnicastRemoteObject implements Master
                         new AbstractMap.SimpleEntry<>(message, null),
                         null);
             }
-            SecretKey key = secretKeys.get(fileName);
+            String key = Base64.getEncoder().encodeToString(secretKeys.get(fileName).getEncoded());
+            key = RSA.encrypt(key, peerRSAPublicKey.get(uri));
             Set<String> paths = new HashSet<>(getPaths(fileName));
             return new AbstractMap.SimpleEntry<>(
                     new AbstractMap.SimpleEntry<>(message, key),
@@ -251,37 +231,37 @@ public class MasterQuery extends UnicastRemoteObject implements Master
 
     }
 
-    @Override
-    public Map.Entry<Map.Entry<String, SecretKey>, Set<String>> write(String fileName, String uri) throws RemoteException {
-        try{
-            Map.Entry<Map.Entry<String, SecretKey>, Set<String>> response;
-            String message = "";
-            if(!hasFile(fileName)) {
-                message = fileName + " doesn't exist";
-                return new AbstractMap.SimpleEntry<>(
-                        new AbstractMap.SimpleEntry<>(message, null),
-                        null);
-            }
-
-            Permissions permissionObj = permissions.get(fileName);
-            if(!permissionObj.canWrite(uri)){
-                message = "The peer doesn't have permission to write";
-                return new AbstractMap.SimpleEntry<>(
-                        new AbstractMap.SimpleEntry<>(message, null),
-                        null);
-            }
-            SecretKey key = secretKeys.get(fileName);
-            Set<String> paths = new HashSet<>(getPaths(fileName));
-            return new AbstractMap.SimpleEntry<>(
-                    new AbstractMap.SimpleEntry<>(message, key),
-                    paths);
-        }
-        catch(Exception e){
-            System.out.println(e);
-        }
-        return null;
-
-    }
+//    @Override
+//    public Map.Entry<Map.Entry<String, SecretKey>, Set<String>> write(String fileName, String uri) throws RemoteException {
+//        try{
+//            Map.Entry<Map.Entry<String, SecretKey>, Set<String>> response;
+//            String message = "";
+//            if(!hasFile(fileName)) {
+//                message = fileName + " doesn't exist";
+//                return new AbstractMap.SimpleEntry<>(
+//                        new AbstractMap.SimpleEntry<>(message, null),
+//                        null);
+//            }
+//
+//            Permissions permissionObj = permissions.get(fileName);
+//            if(!permissionObj.canWrite(uri)){
+//                message = "The peer doesn't have permission to write";
+//                return new AbstractMap.SimpleEntry<>(
+//                        new AbstractMap.SimpleEntry<>(message, null),
+//                        null);
+//            }
+//            SecretKey key = secretKeys.get(fileName);
+//            Set<String> paths = new HashSet<>(getPaths(fileName));
+//            return new AbstractMap.SimpleEntry<>(
+//                    new AbstractMap.SimpleEntry<>(message, key),
+//                    paths);
+//        }
+//        catch(Exception e){
+//            System.out.println(e);
+//        }
+//        return null;
+//
+//    }
 
     @Override
     public String restore(String fileName, String uri) throws RemoteException {

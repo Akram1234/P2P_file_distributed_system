@@ -3,6 +3,8 @@ import javax.crypto.spec.SecretKeySpec;
 import java.io.File;
 import java.rmi.Naming;
 import java.security.KeyPair;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.util.*;
 import java.io.FileInputStream;
 
@@ -30,8 +32,10 @@ public class PeerClient {
             this.myURI = "rmi://" + this.serverIP+":"+this.serverPORT + "/peer";
             this.masterServer =
                     (Master)Naming.lookup("rmi://"+this.masterIP+":"+this.masterPORT+"/master");
-            this.rsaKeyPair = masterServer.generateRSAKeyPair(myURI);
-            System.out.println("Successfully generated RSA Public and private keys");
+            this.rsaKeyPair = RSA.generateKeyPair();
+            this.masterServer.updatePublicKey(this.myURI, rsaKeyPair.getPublic());
+            System.out.println("Successfully generated RSA Public and private keys " +
+                    "and shared with master server");
         }
         catch(Exception e){
             e.printStackTrace();
@@ -68,7 +72,6 @@ public class PeerClient {
                 System.out.println(fileName + " already exists");
                 return;
             }
-            System.out.println("came here");
             // lookup method to find reference of remote object
             for(String peerURI : peersURI){
                 FDS peerServer =
@@ -86,8 +89,22 @@ public class PeerClient {
 
     public void generateRSAPair() {
         try{
-            this.rsaKeyPair = masterServer.generateRSAKeyPair(myURI);
-            System.out.println("Successfully updated the RSA Key value pair");
+            this.rsaKeyPair = RSA.generateKeyPair();
+            this.masterServer.updatePublicKey(this.myURI, this.rsaKeyPair.getPublic());
+            PublicKey publicKey = this.rsaKeyPair.getPublic();
+            PrivateKey privateKey = this.rsaKeyPair.getPrivate();
+
+            // Print public key
+            byte[] publicKeyBytes = publicKey.getEncoded();
+            String publicKeyString = Base64.getEncoder().encodeToString(publicKeyBytes);
+            System.out.println("Public key: " + publicKeyString);
+
+            // Print private key
+            byte[] privateKeyBytes = privateKey.getEncoded();
+            String privateKeyString = Base64.getEncoder().encodeToString(privateKeyBytes);
+            System.out.println("Private key: " + privateKeyString);
+            System.out.println("Successfully updated the RSA Key value pair and " +
+                    "shared the updated public key with master server");
         } catch(Exception e) {
             System.out.println(e);
         }
@@ -95,9 +112,9 @@ public class PeerClient {
 
     public void readFile(String fileName){
         try{
-            Map.Entry<String, SecretKey> response = masterServer.read(fileName, myURI);
+            Map.Entry<String, String> response = masterServer.read(fileName, myURI);
             String message = response.getKey();
-            SecretKey key = response.getValue();
+
             if(message.equals(fileName + " doesn't exist")){
                 System.out.println(message);
                 return;
@@ -105,6 +122,9 @@ public class PeerClient {
                 System.out.println("You don't have permission to read");
                 return;
             }
+            String decryptedKey = RSA.decrypt(response.getValue(), rsaKeyPair.getPrivate());
+            byte[] decodedKey = Base64.getDecoder().decode(decryptedKey);
+            SecretKey key = new SecretKeySpec(decodedKey, 0, decodedKey.length, "AES");
 
             // connect with server
             FDS peerServer =
@@ -124,9 +144,11 @@ public class PeerClient {
 
     public void updateFile(String fileName, String newData){
         try {
-            Map.Entry<Map.Entry<String, SecretKey>, Set<String>> response = masterServer.update(fileName, myURI);
+            Map.Entry<Map.Entry<String, String>, Set<String>> response = masterServer.update(fileName, myURI);
             String message = response.getKey().getKey();
-            SecretKey key = response.getKey().getValue();
+            String decryptedKey = RSA.decrypt(response.getKey().getValue(), rsaKeyPair.getPrivate());
+            byte[] decodedKey = Base64.getDecoder().decode(decryptedKey);
+            SecretKey key = new SecretKeySpec(decodedKey, 0, decodedKey.length, "AES");
             Set<String> peersPath = response.getValue();
             if(message.equals(fileName + " doesn't exist")){
                 System.out.println(response);
@@ -179,9 +201,12 @@ public class PeerClient {
     }
     public void writeFile(String fileName, String data){
         try {
-            Map.Entry<Map.Entry<String, SecretKey>, Set<String>> response = masterServer.update(fileName, myURI);
+            Map.Entry<Map.Entry<String, String>, Set<String>> response = masterServer.update(fileName, myURI);
             String message = response.getKey().getKey();
-            SecretKey key = response.getKey().getValue();
+            String decryptedKey = RSA.decrypt(response.getKey().getValue(), rsaKeyPair.getPrivate());
+            byte[] decodedKey = Base64.getDecoder().decode(decryptedKey);
+            SecretKey key = new SecretKeySpec(decodedKey, 0, decodedKey.length, "AES");
+
             Set<String> peers = response.getValue();
             if(message.equals(fileName + " doesn't exit")){
                 System.out.println(response);

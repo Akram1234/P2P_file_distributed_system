@@ -42,7 +42,6 @@ public class PeerServer {
             System.out.println("Peer Server started");
             Master masterAccess =
                     (Master)Naming.lookup("rmi://"+masterIP+":"+masterPort+"/master");
-            System.out.println("asds");
             int response = masterAccess.registerPeer("rmi://"+myIP+":"+myPort+"/peer");
 
             // registers the user in Master server
