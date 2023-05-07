@@ -4,14 +4,14 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Properties;
 
-public class PeerServer {
+public class Server {
     public String masterPort;
     public String masterIP;
     public String myPort;
     public String myIP;
     public String propFilePath;
 
-    PeerServer(String propFilePath) throws IOException {
+    Server(String propFilePath) throws IOException {
         this.propFilePath = propFilePath;
         Properties prop = new Properties();
         prop.load(new FileInputStream(propFilePath));
@@ -24,7 +24,7 @@ public class PeerServer {
 
     }
 
-    PeerServer(int peerServerId, String propFilePath) throws IOException {
+    Server(int peerServerId, String propFilePath) throws IOException {
         this.propFilePath = propFilePath;
         Properties prop = new Properties();
         prop.load(new FileInputStream(this.propFilePath));
@@ -39,11 +39,11 @@ public class PeerServer {
         try
         {
             System.out.println("Peer Server started");
-            Master masterAccess =
-                    (Master)Naming.lookup("rmi://"+masterIP+":"+masterPort+"/master");
+            CentralServer masterAccess =
+                    (CentralServer)Naming.lookup("rmi://"+masterIP+":"+masterPort+"/master");
             int response = masterAccess.registerPeer("rmi://"+myIP+":"+myPort+"/peer");
 
-            // registers the user in Master server
+            // registers the user in CentralServer server
             if(response == 1){
                 System.out.println("Peer Server Registered Successfully");
             }else if(response == 0){
@@ -69,6 +69,6 @@ public class PeerServer {
         }
     }
     public static void main(String args[]) throws IOException {
-        new PeerServer("../resources/config.properties").run();
+        new Server("../resources/config.properties").run();
     }
 }

@@ -42,7 +42,7 @@ class RSAEncryption {
     public static KeyPair generateKeyPair() throws NoSuchAlgorithmException {
         if(publicPrivateKeyPair !=null) return publicPrivateKeyPair;
         // Create a key pair generator for RSAEncryption
-        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSAEncryption");
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
         keyGen.initialize(SIZE); // set key size
 
         // Generate the key pair

@@ -3,22 +3,22 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class BenchmarksFindings implements Runnable {
-    PeerClient client;
+    Client client;
     String propFilePath;
 
     public static void main(String []args) throws IOException, InterruptedException {
         String propFilePath = "./resources/benchmark.properties";
         BenchmarksFindings benchMark = new BenchmarksFindings(propFilePath);
-        MasterServer masterServer = new MasterServer();
+        CentralDirectoryServer masterServer = new CentralDirectoryServer();
 
         masterServer.run(propFilePath);
-        List<PeerClient> clients = benchMark.createClients(3);
-        List<PeerServer> servers = benchMark.createServers(3);
+        List<Client> clients = benchMark.createClients(3);
+        List<Server> servers = benchMark.createServers(3);
         benchMark.runServers(servers);
         benchMark.runBenchMarks(3, clients, servers);
     }
 
-    private void runBenchMarks(int maxThreads, List<PeerClient> clients, List<PeerServer> servers) throws InterruptedException {
+    private void runBenchMarks(int maxThreads, List<Client> clients, List<Server> servers) throws InterruptedException {
         List<Thread> threads = new ArrayList<>();
         for(int i= 0; i< maxThreads; i++){
             threads.add(new Thread(new BenchmarksFindings(clients.get(i), this.propFilePath)));
@@ -34,30 +34,30 @@ public class BenchmarksFindings implements Runnable {
         System.out.println("Total Execution time " + (endTime - startTime) + " milliseconds");
     }
 
-    private void runClients(List<PeerClient> clients) {
-        for(PeerClient client: clients){
+    private void runClients(List<Client> clients) {
+        for(Client client: clients){
             client.run();
         }
     }
 
-    private void runServers(List<PeerServer> servers) {
-        for(PeerServer server: servers){
+    private void runServers(List<Server> servers) {
+        for(Server server: servers){
             server.run();
         }
     }
 
-    private List<PeerServer> createServers(int maxPeerServers) throws IOException {
-        List<PeerServer> servers = new ArrayList<>();
+    private List<Server> createServers(int maxPeerServers) throws IOException {
+        List<Server> servers = new ArrayList<>();
         for(int id=1;id<=maxPeerServers;id++){
-            servers.add(new PeerServer(id, this.propFilePath));
+            servers.add(new Server(id, this.propFilePath));
         }
         return servers;
     }
 
-    private List<PeerClient> createClients(int maxPeerClients) {
-        List<PeerClient> clients = new ArrayList<>();
+    private List<Client> createClients(int maxPeerClients) {
+        List<Client> clients = new ArrayList<>();
         for(int id=1;id<=maxPeerClients;id++){
-            clients.add(new PeerClient(id));
+            clients.add(new Client(id));
         }
         return clients;
     }
@@ -66,7 +66,7 @@ public class BenchmarksFindings implements Runnable {
         this.propFilePath = propFilePath;
     }
 
-    BenchmarksFindings(PeerClient client, String propFilePath){
+    BenchmarksFindings(Client client, String propFilePath){
         this.client = client;
         this.propFilePath = propFilePath;
     }

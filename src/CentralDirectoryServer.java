@@ -3,7 +3,7 @@ import java.rmi.Naming;
 import java.rmi.registry.LocateRegistry;
 import java.util.*;
 
-public class MasterServer {
+public class CentralDirectoryServer {
     public void run(String path){
         String masterPORT;
         String masterIP;
@@ -18,7 +18,7 @@ public class MasterServer {
 
             // Create an object of the interface
             // implementation class
-            Master obj = new MasterQuery();
+            CentralServer obj = new CentralServerImpl();
             // rmiregistry within the server JVM with
             // port number 1901
             LocateRegistry.createRegistry(Integer.parseInt(masterPORT));
@@ -33,6 +33,6 @@ public class MasterServer {
         }
     }
     public static void main(String args[]) {
-        new MasterServer().run("../resources/config.properties");
+        new CentralDirectoryServer().run("../resources/config.properties");
     }
 }

@@ -9,18 +9,18 @@ import java.util.*;
 import java.io.FileInputStream;
 
 
-public class PeerClient {
+public class Client {
     String masterPORT;
     String masterIP;
     String serverPORT;
     String serverIP;
     String myURI;
-    Master masterServer;
+    CentralServer masterServer;
     KeyPair rsaKeyPair;
 
     HashMap<String, String> usersCredentials = new HashMap<>();
 
-    PeerClient(){
+    Client(){
         try{
             Properties prop = new Properties();
             prop.load(new FileInputStream("../resources/config.properties"));
@@ -31,7 +31,7 @@ public class PeerClient {
             this.serverIP = prop.getProperty("SERVER_IP");
             this.myURI = "rmi://" + this.serverIP+":"+this.serverPORT + "/peer";
             this.masterServer =
-                    (Master)Naming.lookup("rmi://"+this.masterIP+":"+this.masterPORT+"/master");
+                    (CentralServer)Naming.lookup("rmi://"+this.masterIP+":"+this.masterPORT+"/master");
             this.rsaKeyPair = RSAEncryption.generateKeyPair();
             this.masterServer.updatePublicKey(this.myURI, rsaKeyPair.getPublic());
             System.out.println("Successfully generated RSAEncryption Public and private keys " +
@@ -42,7 +42,7 @@ public class PeerClient {
         }
     }
 
-    PeerClient(int clientID){
+    Client(int clientID){
         try{
             Properties prop = new Properties();
             prop.load(new FileInputStream("./resources/benchmark.properties"));
@@ -53,7 +53,7 @@ public class PeerClient {
             this.serverIP = prop.getProperty("SERVER_IP_"+clientID);
             this.myURI = "rmi://" + this.serverIP+":"+this.serverPORT + "/peer";
             this.masterServer =
-                    (Master)Naming.lookup("rmi://"+this.masterIP+":"+this.masterPORT+"/master");
+                    (CentralServer)Naming.lookup("rmi://"+this.masterIP+":"+this.masterPORT+"/master");
         }
         catch(Exception e){
             e.printStackTrace();
@@ -63,7 +63,7 @@ public class PeerClient {
     public void createFile(String fileName, String fileData){
         try{
             //fetch IP and PORT of random peer
-            Map.Entry<Set<String>, String> response = masterServer.create(fileName, myURI);
+            Map.Entry<Set<String>, String> response = masterServer.createFile(fileName, myURI);
             Set<String> peersURI = response.getKey();
             String decryptedKey = RSAEncryption.decrypt(response.getValue(), rsaKeyPair.getPrivate());
             byte[] decodedKey = Base64.getDecoder().decode(decryptedKey);
@@ -112,7 +112,7 @@ public class PeerClient {
 
     public void readFile(String fileName){
         try{
-            Map.Entry<String, String> response = masterServer.read(fileName, myURI);
+            Map.Entry<String, String> response = masterServer.readFile(fileName, myURI);
             String message = response.getKey();
 
             if(message.equals(fileName + " doesn't exist")){
@@ -144,7 +144,7 @@ public class PeerClient {
 
     public void updateFile(String fileName, String newData){
         try {
-            Map.Entry<Map.Entry<String, String>, Set<String>> response = masterServer.update(fileName, myURI);
+            Map.Entry<Map.Entry<String, String>, Set<String>> response = masterServer.updateFile(fileName, myURI);
             String message = response.getKey().getKey();
             String decryptedKey = RSAEncryption.decrypt(response.getKey().getValue(), rsaKeyPair.getPrivate());
             byte[] decodedKey = Base64.getDecoder().decode(decryptedKey);
@@ -174,7 +174,7 @@ public class PeerClient {
     }
     public void createDirectory(String directoryName){
         try {
-            Map.Entry<Set<String>, String> response = masterServer.create(directoryName, myURI);
+            Map.Entry<Set<String>, String> response = masterServer.createFile(directoryName, myURI);
             Set<String> peersURI = response.getKey();
             String decryptedKey = RSAEncryption.decrypt(response.getValue(), rsaKeyPair.getPrivate());
             byte[] decodedKey = Base64.getDecoder().decode(decryptedKey);
@@ -201,7 +201,7 @@ public class PeerClient {
     }
     public void writeFile(String fileName, String data){
         try {
-            Map.Entry<Map.Entry<String, String>, Set<String>> response = masterServer.update(fileName, myURI);
+            Map.Entry<Map.Entry<String, String>, Set<String>> response = masterServer.updateFile(fileName, myURI);
             String message = response.getKey().getKey();
             String decryptedKey = RSAEncryption.decrypt(response.getKey().getValue(), rsaKeyPair.getPrivate());
             byte[] decodedKey = Base64.getDecoder().decode(decryptedKey);
@@ -230,7 +230,7 @@ public class PeerClient {
     }
     public void delete(String fileName){
         try{
-            String response = masterServer.delete(fileName, myURI);
+            String response = masterServer.deleteFile(fileName, myURI);
             if(response.equals(fileName + " doesn't exit")){
                 System.out.println(response);
                 return;
@@ -252,7 +252,7 @@ public class PeerClient {
 
     public void restore(String fileName){
         try{
-            String response = masterServer.restore(fileName, myURI);
+            String response = masterServer.restoreFile(fileName, myURI);
             System.out.println(response);
             if(response.equals(fileName + " already exist")){
                 System.out.println(response);
@@ -429,7 +429,7 @@ public class PeerClient {
 
 
     public static void main(String args[]) {
-        new PeerClient().run();
+        new Client().run();
     }
 
     public void displayHelp() {
