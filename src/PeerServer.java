@@ -1,4 +1,3 @@
-import java.io.FileNotFoundException;
 import java.rmi.Naming;
 import java.rmi.registry.LocateRegistry;
 import java.io.FileInputStream;
@@ -55,7 +54,7 @@ public class PeerServer {
 
             // Create an object of the interface
             // implementation class
-            FDS obj = new FDSQuery(this.propFilePath);
+            FileDistributedSystem obj = new FileDistributedSystemImpl(this.propFilePath);
 
             // rmiregistry within the server JVM with
             System.out.println("port:"+myPort);

@@ -74,10 +74,10 @@ public class PeerClient {
             }
             // lookup method to find reference of remote object
             for(String peerURI : peersURI){
-                FDS peerServer =
-                        (FDS)Naming.lookup(peerURI);
+                FileDistributedSystem peerServer =
+                        (FileDistributedSystem)Naming.lookup(peerURI);
                 System.out.println(AESEncryption.encrypt(fileName, key));
-                peerServer.create(AESEncryption.encrypt(fileName, key),
+                peerServer.createFile(AESEncryption.encrypt(fileName, key),
                                   AESEncryption.encrypt(fileData, key));
             }
             System.out.println("Successfully created " + fileName);
@@ -127,10 +127,10 @@ public class PeerClient {
             SecretKey key = new SecretKeySpec(decodedKey, 0, decodedKey.length, "AESEncryption");
 
             // connect with server
-            FDS peerServer =
-                    (FDS)Naming.lookup(message);
+            FileDistributedSystem peerServer =
+                    (FileDistributedSystem)Naming.lookup(message);
             System.out.println("Encrypted file name");
-            String fileData = peerServer.read(AESEncryption.encrypt(fileName, key));
+            String fileData = peerServer.readFile(AESEncryption.encrypt(fileName, key));
             if(fileData==null){
                 System.out.println("Failed to read " + fileName);
                 return;
@@ -159,11 +159,11 @@ public class PeerClient {
             }
             // connect with server
             for(String peer : peersPath){
-                FDS peerServer =
-                        (FDS)Naming.lookup(peer);
-                String oldData = AESEncryption.decrypt(peerServer.read(AESEncryption.encrypt(fileName, key)), key);
+                FileDistributedSystem peerServer =
+                        (FileDistributedSystem)Naming.lookup(peer);
+                String oldData = AESEncryption.decrypt(peerServer.readFile(AESEncryption.encrypt(fileName, key)), key);
 
-                peerServer.write(AESEncryption.encrypt(fileName, key),
+                peerServer.writeFile(AESEncryption.encrypt(fileName, key),
                         AESEncryption.encrypt(oldData+newData, key));
             }
             System.out.println("Successfully updated the " + fileName + " data");
@@ -189,8 +189,8 @@ public class PeerClient {
             }
             // lookup method to find reference of remote object
             for(String peerURI : peersURI){
-                FDS peerServer =
-                        (FDS)Naming.lookup(peerURI);
+                FileDistributedSystem peerServer =
+                        (FileDistributedSystem)Naming.lookup(peerURI);
                 peerServer.createDirectory(AESEncryption.encrypt(directoryName, key));
             }
             System.out.println("Successfully created " + directoryName);
@@ -217,9 +217,9 @@ public class PeerClient {
             }
             // connect with server
             for(String peer : peers){
-                FDS peerServer =
-                        (FDS)Naming.lookup(peer);
-                peerServer.write(AESEncryption.encrypt(fileName, key),
+                FileDistributedSystem peerServer =
+                        (FileDistributedSystem)Naming.lookup(peer);
+                peerServer.writeFile(AESEncryption.encrypt(fileName, key),
                         AESEncryption.encrypt(data, key));
             }
             System.out.println("Successfully wrote to the " + fileName);
@@ -240,8 +240,8 @@ public class PeerClient {
             }
 
 //            // connect with server
-//            FDS peerServer =
-//                    (FDS)Naming.lookup(response);
+//            FileDistributedSystem peerServer =
+//                    (FileDistributedSystem)Naming.lookup(response);
 //            peerServer.delete(fileName);
             System.out.println("successfully deleted "+ fileName);
         }
@@ -261,8 +261,8 @@ public class PeerClient {
                 System.out.println("You don't have permission to delete/restore");
                 return;
             }
-//            FDS peerServer =
-//                    (FDS)Naming.lookup(response);
+//            FileDistributedSystem peerServer =
+//                    (FileDistributedSystem)Naming.lookup(response);
 //            peerServer.restore(fileName);
             System.out.println(fileName + " Successfully Restored ");
         }

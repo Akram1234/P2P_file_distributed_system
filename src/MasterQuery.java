@@ -406,9 +406,9 @@ public class MasterQuery extends UnicastRemoteObject implements Master
                     for(String fileName : lookup.keySet()){
                         for(String peerPath : lookup.get(fileName)){
                             // connect with server
-                            FDS peerServer =
-                                    (FDS)Naming.lookup(peerPath);
-                            String fileData = peerServer.read(AESEncryption.encrypt(fileName, secretKeys.get(fileName)));
+                            FileDistributedSystem peerServer =
+                                    (FileDistributedSystem)Naming.lookup(peerPath);
+                            String fileData = peerServer.readFile(AESEncryption.encrypt(fileName, secretKeys.get(fileName)));
                             if(fileData==null){
                                 System.out.println("Malicious activity detected in the Master Server......");
                                 System.out.println("Exiting......");
