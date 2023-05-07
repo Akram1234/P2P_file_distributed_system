@@ -13,7 +13,7 @@ public class Encryption {
 
 
 class RSAEncryption {
-    private static final String RSA = "RSAEncryption/ECB/PKCS1Padding"; // RSAEncryption encryption algorithm
+    private static final String RSA = "RSA/ECB/PKCS1Padding"; // RSAEncryption encryption algorithm
     private static final int SIZE = 2048; // key size in bits
     private static KeyPair publicPrivateKeyPair;
 
@@ -62,8 +62,8 @@ class AESEncryption {
 
     static {
         try {
-            encryptCipher = Cipher.getInstance("AESEncryption/GCM/NoPadding");
-            decryptCipher = Cipher.getInstance("AESEncryption/GCM/NoPadding");
+            encryptCipher = Cipher.getInstance("AES/GCM/NoPadding");
+            decryptCipher = Cipher.getInstance("AES/GCM/NoPadding");
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         } catch (NoSuchPaddingException e) {
@@ -88,7 +88,7 @@ class AESEncryption {
         String secret = Base64.getEncoder().encodeToString(key.getEncoded());
         try {
             setKey(secret);
-            Cipher cipher = Cipher.getInstance("AESEncryption/ECB/PKCS5Padding");
+            Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
             cipher.init(Cipher.ENCRYPT_MODE, AESEncryption.secret);
             String response = Base64.getEncoder()
                     .encodeToString(cipher.doFinal(message.getBytes("UTF-8")));
@@ -104,7 +104,7 @@ class AESEncryption {
         String secret = Base64.getEncoder().encodeToString(key.getEncoded());
         try {
             setKey(secret);
-            Cipher cipher = Cipher.getInstance("AESEncryption/ECB/PKCS5Padding");
+            Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
             cipher.init(Cipher.DECRYPT_MODE, AESEncryption.secret);
             return new String(cipher.doFinal(Base64.getDecoder()
                     .decode(message)));
@@ -116,7 +116,7 @@ class AESEncryption {
 
 
     public static SecretKey getSecret() throws Exception {
-        KeyGenerator generator = KeyGenerator.getInstance("AESEncryption");
+        KeyGenerator generator = KeyGenerator.getInstance("AES");
         generator.init(KEY_SIZE);
         SecretKey key = generator.generateKey();
         return key;
@@ -130,7 +130,7 @@ class AESEncryption {
             sha_var = MessageDigest.getInstance("SHA-1");
             key = sha_var.digest(key);
             key = Arrays.copyOf(key, 16);
-            secret = new SecretKeySpec(key, "AESEncryption");
+            secret = new SecretKeySpec(key, "AES");
         } catch (NoSuchAlgorithmException | UnsupportedEncodingException e) {
             e.printStackTrace();
         }

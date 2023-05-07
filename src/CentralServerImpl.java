@@ -9,6 +9,20 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 
+interface CentralServer extends Remote{
+    public boolean containsFile(String filename) throws RemoteException;
+    public List<String> getPaths(String filename) throws RemoteException;
+    public String getPath() throws IOException;
+    public int registerPeer(String peerData) throws IOException;
+    public Map.Entry<String, String> readFile(String fileName, String uri) throws RemoteException;
+    public Map.Entry<Set<String>, String> createFile(String fileName, String uri) throws RemoteException;
+    public String deleteFile(String fileName, String uri) throws RemoteException;
+    public Map.Entry<Map.Entry<String, String>, Set<String>> updateFile(String fileName, String uri) throws RemoteException;
+    public String restoreFile(String fileName, String uri) throws RemoteException;
+    public String delegatePermission(String fileName, String uri, String otherURI, String permission) throws RemoteException;
+    public boolean updatePublicKey(String uri, PublicKey publicKey) throws RemoteException;
+}
+
 public class CentralServerImpl extends UnicastRemoteObject implements CentralServer
 {
     // lookup : Filename -> List of peers containing that file
@@ -390,20 +404,6 @@ public class CentralServerImpl extends UnicastRemoteObject implements CentralSer
 
 }
 
-
-interface CentralServer extends Remote{
-    public boolean containsFile(String filename) throws RemoteException;
-    public List<String> getPaths(String filename) throws RemoteException;
-    public String getPath() throws IOException;
-    public int registerPeer(String peerData) throws IOException;
-    public Map.Entry<String, String> readFile(String fileName, String uri) throws RemoteException;
-    public Map.Entry<Set<String>, String> createFile(String fileName, String uri) throws RemoteException;
-    public String deleteFile(String fileName, String uri) throws RemoteException;
-    public Map.Entry<Map.Entry<String, String>, Set<String>> updateFile(String fileName, String uri) throws RemoteException;
-    public String restoreFile(String fileName, String uri) throws RemoteException;
-    public String delegatePermission(String fileName, String uri, String otherURI, String permission) throws RemoteException;
-    public boolean updatePublicKey(String uri, PublicKey publicKey) throws RemoteException;
-}
 
 
 interface FilePermissons {
