@@ -32,9 +32,9 @@ public class PeerClient {
             this.myURI = "rmi://" + this.serverIP+":"+this.serverPORT + "/peer";
             this.masterServer =
                     (Master)Naming.lookup("rmi://"+this.masterIP+":"+this.masterPORT+"/master");
-            this.rsaKeyPair = RSA.generateKeyPair();
+            this.rsaKeyPair = RSAEncryption.generateKeyPair();
             this.masterServer.updatePublicKey(this.myURI, rsaKeyPair.getPublic());
-            System.out.println("Successfully generated RSA Public and private keys " +
+            System.out.println("Successfully generated RSAEncryption Public and private keys " +
                     "and shared with master server");
         }
         catch(Exception e){
@@ -65,9 +65,9 @@ public class PeerClient {
             //fetch IP and PORT of random peer
             Map.Entry<Set<String>, String> response = masterServer.create(fileName, myURI);
             Set<String> peersURI = response.getKey();
-            String decryptedKey = RSA.decrypt(response.getValue(), rsaKeyPair.getPrivate());
+            String decryptedKey = RSAEncryption.decrypt(response.getValue(), rsaKeyPair.getPrivate());
             byte[] decodedKey = Base64.getDecoder().decode(decryptedKey);
-            SecretKey key = new SecretKeySpec(decodedKey, 0, decodedKey.length, "AES");
+            SecretKey key = new SecretKeySpec(decodedKey, 0, decodedKey.length, "AESEncryption");
             if(peersURI == null) {
                 System.out.println(fileName + " already exists");
                 return;
@@ -76,9 +76,9 @@ public class PeerClient {
             for(String peerURI : peersURI){
                 FDS peerServer =
                         (FDS)Naming.lookup(peerURI);
-                System.out.println(AES.encrypt(fileName, key));
-                peerServer.create(AES.encrypt(fileName, key),
-                                  AES.encrypt(fileData, key));
+                System.out.println(AESEncryption.encrypt(fileName, key));
+                peerServer.create(AESEncryption.encrypt(fileName, key),
+                                  AESEncryption.encrypt(fileData, key));
             }
             System.out.println("Successfully created " + fileName);
         }
@@ -89,7 +89,7 @@ public class PeerClient {
 
     public void generateRSAPair() {
         try{
-            this.rsaKeyPair = RSA.generateKeyPair();
+            this.rsaKeyPair = RSAEncryption.generateKeyPair();
             this.masterServer.updatePublicKey(this.myURI, this.rsaKeyPair.getPublic());
             PublicKey publicKey = this.rsaKeyPair.getPublic();
             PrivateKey privateKey = this.rsaKeyPair.getPrivate();
@@ -103,7 +103,7 @@ public class PeerClient {
             byte[] privateKeyBytes = privateKey.getEncoded();
             String privateKeyString = Base64.getEncoder().encodeToString(privateKeyBytes);
             System.out.println("Private key: " + privateKeyString);
-            System.out.println("Successfully updated the RSA Key value pair and " +
+            System.out.println("Successfully updated the RSAEncryption Key value pair and " +
                     "shared the updated public key with master server");
         } catch(Exception e) {
             System.out.println(e);
@@ -122,20 +122,20 @@ public class PeerClient {
                 System.out.println("You don't have permission to read");
                 return;
             }
-            String decryptedKey = RSA.decrypt(response.getValue(), rsaKeyPair.getPrivate());
+            String decryptedKey = RSAEncryption.decrypt(response.getValue(), rsaKeyPair.getPrivate());
             byte[] decodedKey = Base64.getDecoder().decode(decryptedKey);
-            SecretKey key = new SecretKeySpec(decodedKey, 0, decodedKey.length, "AES");
+            SecretKey key = new SecretKeySpec(decodedKey, 0, decodedKey.length, "AESEncryption");
 
             // connect with server
             FDS peerServer =
                     (FDS)Naming.lookup(message);
             System.out.println("Encrypted file name");
-            String fileData = peerServer.read(AES.encrypt(fileName, key));
+            String fileData = peerServer.read(AESEncryption.encrypt(fileName, key));
             if(fileData==null){
                 System.out.println("Failed to read " + fileName);
                 return;
             }
-            System.out.println("File Data : \n"+ AES.decrypt(fileData, key));
+            System.out.println("File Data : \n"+ AESEncryption.decrypt(fileData, key));
         }
         catch(Exception e){
             e.printStackTrace();
@@ -146,9 +146,9 @@ public class PeerClient {
         try {
             Map.Entry<Map.Entry<String, String>, Set<String>> response = masterServer.update(fileName, myURI);
             String message = response.getKey().getKey();
-            String decryptedKey = RSA.decrypt(response.getKey().getValue(), rsaKeyPair.getPrivate());
+            String decryptedKey = RSAEncryption.decrypt(response.getKey().getValue(), rsaKeyPair.getPrivate());
             byte[] decodedKey = Base64.getDecoder().decode(decryptedKey);
-            SecretKey key = new SecretKeySpec(decodedKey, 0, decodedKey.length, "AES");
+            SecretKey key = new SecretKeySpec(decodedKey, 0, decodedKey.length, "AESEncryption");
             Set<String> peersPath = response.getValue();
             if(message.equals(fileName + " doesn't exist")){
                 System.out.println(response);
@@ -161,10 +161,10 @@ public class PeerClient {
             for(String peer : peersPath){
                 FDS peerServer =
                         (FDS)Naming.lookup(peer);
-                String oldData = AES.decrypt(peerServer.read(AES.encrypt(fileName, key)), key);
+                String oldData = AESEncryption.decrypt(peerServer.read(AESEncryption.encrypt(fileName, key)), key);
 
-                peerServer.write(AES.encrypt(fileName, key),
-                        AES.encrypt(oldData+newData, key));
+                peerServer.write(AESEncryption.encrypt(fileName, key),
+                        AESEncryption.encrypt(oldData+newData, key));
             }
             System.out.println("Successfully updated the " + fileName + " data");
         }
@@ -176,9 +176,9 @@ public class PeerClient {
         try {
             Map.Entry<Set<String>, String> response = masterServer.create(directoryName, myURI);
             Set<String> peersURI = response.getKey();
-            String decryptedKey = RSA.decrypt(response.getValue(), rsaKeyPair.getPrivate());
+            String decryptedKey = RSAEncryption.decrypt(response.getValue(), rsaKeyPair.getPrivate());
             byte[] decodedKey = Base64.getDecoder().decode(decryptedKey);
-            SecretKey key = new SecretKeySpec(decodedKey, 0, decodedKey.length, "AES");
+            SecretKey key = new SecretKeySpec(decodedKey, 0, decodedKey.length, "AESEncryption");
 
 //            Map.Entry<Set<String>, SecretKey> response = masterServer.create(directoryName, myURI);
 //            Set<String> peersURI = response.getKey();
@@ -191,7 +191,7 @@ public class PeerClient {
             for(String peerURI : peersURI){
                 FDS peerServer =
                         (FDS)Naming.lookup(peerURI);
-                peerServer.createDirectory(AES.encrypt(directoryName, key));
+                peerServer.createDirectory(AESEncryption.encrypt(directoryName, key));
             }
             System.out.println("Successfully created " + directoryName);
         }
@@ -203,9 +203,9 @@ public class PeerClient {
         try {
             Map.Entry<Map.Entry<String, String>, Set<String>> response = masterServer.update(fileName, myURI);
             String message = response.getKey().getKey();
-            String decryptedKey = RSA.decrypt(response.getKey().getValue(), rsaKeyPair.getPrivate());
+            String decryptedKey = RSAEncryption.decrypt(response.getKey().getValue(), rsaKeyPair.getPrivate());
             byte[] decodedKey = Base64.getDecoder().decode(decryptedKey);
-            SecretKey key = new SecretKeySpec(decodedKey, 0, decodedKey.length, "AES");
+            SecretKey key = new SecretKeySpec(decodedKey, 0, decodedKey.length, "AESEncryption");
 
             Set<String> peers = response.getValue();
             if(message.equals(fileName + " doesn't exit")){
@@ -219,8 +219,8 @@ public class PeerClient {
             for(String peer : peers){
                 FDS peerServer =
                         (FDS)Naming.lookup(peer);
-                peerServer.write(AES.encrypt(fileName, key),
-                        AES.encrypt(data, key));
+                peerServer.write(AESEncryption.encrypt(fileName, key),
+                        AESEncryption.encrypt(data, key));
             }
             System.out.println("Successfully wrote to the " + fileName);
         }
@@ -353,7 +353,7 @@ public class PeerClient {
                         "6. Delete file" + " " +
                         "7. Restore file" + "\n" +
                         "8. Delegate permissions " +
-                        "9. Generate RSA Pair " +
+                        "9. Generate RSAEncryption Pair " +
                         "10. Help " +
                         "11. Exit"
                 );

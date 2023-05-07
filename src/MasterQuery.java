@@ -1,14 +1,14 @@
 import javax.crypto.SecretKey;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.rmi.*;
 import java.rmi.server.*;
-import java.security.KeyPair;
 import java.security.PublicKey;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+
+
 
 
 
@@ -25,7 +25,7 @@ public class MasterQuery extends UnicastRemoteObject implements Master
     private Map<String, Permissions> permissions;
     // Hashmap to manage encryption keys for each file
     private static Map<String, SecretKey> secretKeys;
-    // Hashmap to store RSA public and private keys for each user
+    // Hashmap to store RSAEncryption public and private keys for each user
     private static Map<String, PublicKey> peerRSAPublicKey;
     // Replication Factor fetched from property file
     private Integer replicaFactor;
@@ -69,7 +69,7 @@ public class MasterQuery extends UnicastRemoteObject implements Master
             List<String> paths = getPaths(fileName);
             String peerPath = paths.get(0);
             String key = Base64.getEncoder().encodeToString(secretKeys.get(fileName).getEncoded());
-            key = RSA.encrypt(key, peerRSAPublicKey.get(uri));
+            key = RSAEncryption.encrypt(key, peerRSAPublicKey.get(uri));
             return new AbstractMap.SimpleEntry<>(peerPath, key);
         }
         catch(Exception e){
@@ -82,9 +82,9 @@ public class MasterQuery extends UnicastRemoteObject implements Master
     public boolean updatePublicKey(String uri, PublicKey publicKey)throws RemoteException {
         try{
             if(peerRSAPublicKey.containsKey(uri)){
-                System.out.println("Successfully updated the RSA public key");
+                System.out.println("Successfully updated the RSAEncryption public key");
             } else {
-                System.out.println("Successfully recieved peer RSA public key");
+                System.out.println("Successfully recieved peer RSAEncryption public key");
             }
             peerRSAPublicKey.put(uri, publicKey);
             return true;
@@ -106,9 +106,9 @@ public class MasterQuery extends UnicastRemoteObject implements Master
             permissions.put(fileName, permissionObj);
             lookup.put(fileName, peersURI);
             isDeleted.put(fileName, false);
-            secretKeys.put(fileName, AES.getSecretKey());
+            secretKeys.put(fileName, AESEncryption.getSecret());
             String key = Base64.getEncoder().encodeToString(secretKeys.get(fileName).getEncoded());
-            key = RSA.encrypt(key, peerRSAPublicKey.get(uri));
+            key = RSAEncryption.encrypt(key, peerRSAPublicKey.get(uri));
             System.out.println(fileName + " data updated in the lookup table");
             return new AbstractMap.SimpleEntry<>(peersURI, key);
         } catch (Exception io){
@@ -218,7 +218,7 @@ public class MasterQuery extends UnicastRemoteObject implements Master
                         null);
             }
             String key = Base64.getEncoder().encodeToString(secretKeys.get(fileName).getEncoded());
-            key = RSA.encrypt(key, peerRSAPublicKey.get(uri));
+            key = RSAEncryption.encrypt(key, peerRSAPublicKey.get(uri));
             Set<String> paths = new HashSet<>(getPaths(fileName));
             return new AbstractMap.SimpleEntry<>(
                     new AbstractMap.SimpleEntry<>(message, key),
@@ -408,7 +408,7 @@ public class MasterQuery extends UnicastRemoteObject implements Master
                             // connect with server
                             FDS peerServer =
                                     (FDS)Naming.lookup(peerPath);
-                            String fileData = peerServer.read(AES.encrypt(fileName, secretKeys.get(fileName)));
+                            String fileData = peerServer.read(AESEncryption.encrypt(fileName, secretKeys.get(fileName)));
                             if(fileData==null){
                                 System.out.println("Malicious activity detected in the Master Server......");
                                 System.out.println("Exiting......");
@@ -426,3 +426,90 @@ public class MasterQuery extends UnicastRemoteObject implements Master
 
 
 }
+
+
+interface Master extends Remote{
+    public boolean hasFile(String filename) throws RemoteException;
+    public List<String> getPaths(String filename) throws RemoteException;
+    public String getPath() throws IOException;
+    public int registerPeer(String peerData) throws IOException;
+    public Map.Entry<String, String> read(String fileName, String uri) throws RemoteException;
+    public Map.Entry<Set<String>, String> create(String fileName, String uri) throws RemoteException;
+    public String delete(String fileName, String uri) throws RemoteException;
+    public Map.Entry<Map.Entry<String, String>, Set<String>> update(String fileName, String uri) throws RemoteException;
+    public String restore(String fileName, String uri) throws RemoteException;
+    public String delegatePermission(String fileName, String uri, String otherURI, String permission) throws RemoteException;
+    public boolean updatePublicKey(String uri, PublicKey publicKey) throws RemoteException;
+}
+
+
+interface Permissions {
+
+    public boolean canRead(String IP);
+    public boolean canWrite(String IP);
+    public boolean canDelete(String IP);
+
+    public void setRead(String IP);
+    public void setWrite(String IP);
+    public void setDelete(String IP);
+
+    public boolean revokeRead(String IP);
+    public boolean revokeWrite(String IP);
+    public boolean revokeDelete(String IP);
+
+}
+
+class PermissionsImpl implements Permissions {
+    public String filePath;
+    public Set<String> read;
+    public Set<String> write;
+    public Set<String> delete;
+
+    public PermissionsImpl(String filepath){
+        this.filePath = filepath;
+        this.read = new HashSet<>();
+        this.write = new HashSet<>();
+        this.delete = new HashSet<>();
+    }
+
+    public PermissionsImpl(String filePath, String uri){
+        this(filePath);
+        this.read.add(uri);
+        this.write.add(uri);
+        this.delete.add(uri);
+    }
+
+    @Override
+    public boolean canRead(String IP) {
+        return read.contains(IP);
+    }
+
+    @Override
+    public boolean canWrite(String IP) {
+        return write.contains(IP);
+    }
+
+    @Override
+    public boolean canDelete(String IP) {
+        return delete.contains(IP);
+    }
+
+    @Override
+    public void setRead(String IP) { this.read.add(IP); }
+
+    @Override
+    public void setWrite(String IP) { this.write.add(IP); }
+
+    @Override
+    public void setDelete(String IP) { this.delete.add(IP); }
+
+    @Override
+    public boolean revokeRead(String IP) { return this.read.remove(IP);  }
+
+    @Override
+    public boolean revokeWrite(String IP) { return this.write.remove(IP); }
+
+    @Override
+    public boolean revokeDelete(String IP) { return this.delete.remove(IP); }
+}
+
