@@ -9,22 +9,18 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 
-
-
-
-
 public class MasterQuery extends UnicastRemoteObject implements Master
 {
     // lookup : Filename -> List of peers containing that file
-    private static Map<String, Set<String>> lookup;
+    private static Map<String, Set<String>> table;
     // peers : Stores all the registered peers
-    private Set<String> peers;
+    private Set<String> allPeers;
     // bin : to store what all files are deleted
-    private Map<String, Boolean> isDeleted;
-    // Permissions Hashmap to manage all the permissions related to a file
-    private Map<String, Permissions> permissions;
+    private Map<String, Boolean> deletedFiles;
+    // FilePermissons Hashmap to manage all the permissions related to a file
+    private Map<String, FilePermissons> filePermission;
     // Hashmap to manage encryption keys for each file
-    private static Map<String, SecretKey> secretKeys;
+    private static Map<String, SecretKey> keys;
     // Hashmap to store RSAEncryption public and private keys for each user
     private static Map<String, PublicKey> peerRSAPublicKey;
     // Replication Factor fetched from property file
@@ -34,11 +30,11 @@ public class MasterQuery extends UnicastRemoteObject implements Master
     // from its parent constructor
     MasterQuery() throws IOException {
         super();
-        lookup = new HashMap<>();
-        peers = new HashSet<>();
-        isDeleted = new HashMap<>();
-        permissions = new HashMap<>();
-        secretKeys = new HashMap<>();
+        table = new HashMap<>();
+        allPeers = new HashSet<>();
+        deletedFiles = new HashMap<>();
+        filePermission = new HashMap<>();
+        keys = new HashMap<>();
         Properties prop = new Properties();
         peerRSAPublicKey = new HashMap<>();
 //        prop.load(new FileInputStream("../resources/config.properties"));
@@ -60,15 +56,15 @@ public class MasterQuery extends UnicastRemoteObject implements Master
                 return new AbstractMap.SimpleEntry<>(message, null);
             }
 
-            Permissions permissionObj = permissions.get(fileName);
-            if(!permissionObj.canRead(uri)){
+            FilePermissons permissionObj = filePermission.get(fileName);
+            if(!permissionObj.canReadPermission(uri)){
                 message = "The peer doesn't have permission to read";
                 return new AbstractMap.SimpleEntry<>(message, null);
             }
 
             List<String> paths = getPaths(fileName);
             String peerPath = paths.get(0);
-            String key = Base64.getEncoder().encodeToString(secretKeys.get(fileName).getEncoded());
+            String key = Base64.getEncoder().encodeToString(keys.get(fileName).getEncoded());
             key = RSAEncryption.encrypt(key, peerRSAPublicKey.get(uri));
             return new AbstractMap.SimpleEntry<>(peerPath, key);
         }
@@ -102,12 +98,12 @@ public class MasterQuery extends UnicastRemoteObject implements Master
                return null;
             }
             Set<String> peersURI = getPaths_RF();
-            Permissions permissionObj = new PermissionsImpl(fileName, uri);
-            permissions.put(fileName, permissionObj);
-            lookup.put(fileName, peersURI);
-            isDeleted.put(fileName, false);
-            secretKeys.put(fileName, AESEncryption.getSecret());
-            String key = Base64.getEncoder().encodeToString(secretKeys.get(fileName).getEncoded());
+            FilePermissons permissionObj = new FilePermissionsImpl(fileName, uri);
+            filePermission.put(fileName, permissionObj);
+            table.put(fileName, peersURI);
+            deletedFiles.put(fileName, false);
+            keys.put(fileName, AESEncryption.getSecret());
+            String key = Base64.getEncoder().encodeToString(keys.get(fileName).getEncoded());
             key = RSAEncryption.encrypt(key, peerRSAPublicKey.get(uri));
             System.out.println(fileName + " data updated in the lookup table");
             return new AbstractMap.SimpleEntry<>(peersURI, key);
@@ -125,14 +121,14 @@ public class MasterQuery extends UnicastRemoteObject implements Master
                 message = fileName + " doesn't exit";
                 return message;
             }
-            Permissions permissionObj = permissions.get(fileName);
+            FilePermissons permissionObj = filePermission.get(fileName);
             if(permission.equals("read")){
-                if(permissionObj.canRead(uri)){
-                    if(permissionObj.canRead(otherURI)){
+                if(permissionObj.canReadPermission(uri)){
+                    if(permissionObj.canReadPermission(otherURI)){
                         message = "The other peer already have "+permission;
                         return message;
                     } else {
-                        permissionObj.setRead(otherURI);
+                        permissionObj.setReadPermissions(otherURI);
                     }
                 } else {
                     message = "The peer doesn't have " + permission + " permission";
@@ -140,12 +136,12 @@ public class MasterQuery extends UnicastRemoteObject implements Master
                 }
             }
             if(permission.equals("write")){
-                if(permissionObj.canWrite(uri)){
-                    if(permissionObj.canWrite(otherURI)){
+                if(permissionObj.canWritePermission(uri)){
+                    if(permissionObj.canWritePermission(otherURI)){
                         message = "The other peer already have "+permission;
                         return message;
                     } else {
-                        permissionObj.setWrite(otherURI);
+                        permissionObj.setWritePermissions(otherURI);
                     }
                 } else {
                     message = "The peer doesn't have " + permission + " permission";
@@ -153,12 +149,12 @@ public class MasterQuery extends UnicastRemoteObject implements Master
                 }
             }
             if(permission.equals("delete")){
-                if(permissionObj.canDelete(uri)){
-                    if(permissionObj.canDelete(otherURI)){
+                if(permissionObj.canDeletePermission(uri)){
+                    if(permissionObj.canDeletePermission(otherURI)){
                         message = "The other peer already have "+permission;
                         return message;
                     } else {
-                        permissionObj.setWrite(otherURI);
+                        permissionObj.setWritePermissions(otherURI);
                     }
                 } else {
                     message = "The peer doesn't have " + permission + " permission";
@@ -181,14 +177,14 @@ public class MasterQuery extends UnicastRemoteObject implements Master
                 message = fileName + " doesn't exit";
                 return message;
             }
-            Permissions permissionObj = permissions.get(fileName);
-            if(!permissionObj.canDelete(uri)){
+            FilePermissons permissionObj = filePermission.get(fileName);
+            if(!permissionObj.canDeletePermission(uri)){
                 message = "The peer doesn't have permission to delete/restore";
                 return message;
             }
             List<String> paths = getPaths(fileName);
             String peerURI = paths.get(0);
-            isDeleted.put(fileName, true);
+            deletedFiles.put(fileName, true);
             return peerURI;
         }
         catch(Exception e){
@@ -210,14 +206,14 @@ public class MasterQuery extends UnicastRemoteObject implements Master
                         null);
             }
 
-            Permissions permissionObj = permissions.get(fileName);
-            if(!permissionObj.canWrite(uri)){
+            FilePermissons permissionObj = filePermission.get(fileName);
+            if(!permissionObj.canWritePermission(uri)){
                 message = "The peer doesn't have permission to write";
                 return new AbstractMap.SimpleEntry<>(
                         new AbstractMap.SimpleEntry<>(message, null),
                         null);
             }
-            String key = Base64.getEncoder().encodeToString(secretKeys.get(fileName).getEncoded());
+            String key = Base64.getEncoder().encodeToString(keys.get(fileName).getEncoded());
             key = RSAEncryption.encrypt(key, peerRSAPublicKey.get(uri));
             Set<String> paths = new HashSet<>(getPaths(fileName));
             return new AbstractMap.SimpleEntry<>(
@@ -243,7 +239,7 @@ public class MasterQuery extends UnicastRemoteObject implements Master
 //                        null);
 //            }
 //
-//            Permissions permissionObj = permissions.get(fileName);
+//            FilePermissons permissionObj = permissions.get(fileName);
 //            if(!permissionObj.canWrite(uri)){
 //                message = "The peer doesn't have permission to write";
 //                return new AbstractMap.SimpleEntry<>(
@@ -272,15 +268,15 @@ public class MasterQuery extends UnicastRemoteObject implements Master
                 return message;
             }
 
-            Permissions permissionObj = permissions.get(fileName);
-            if(!permissionObj.canWrite(uri)){
+            FilePermissons permissionObj = filePermission.get(fileName);
+            if(!permissionObj.canWritePermission(uri)){
                 message = "The peer doesn't have permission to delete/restore";
                 return message;
             }
 
-            List<String> paths = new ArrayList<>(lookup.get(fileName));
+            List<String> paths = new ArrayList<>(table.get(fileName));
             String peerPath = paths.get(0);
-            isDeleted.put(fileName, false);
+            deletedFiles.put(fileName, false);
             return peerPath;
         }
         catch(Exception e){
@@ -294,7 +290,7 @@ public class MasterQuery extends UnicastRemoteObject implements Master
     @Override
     public boolean hasFile(String filename) throws RemoteException{
         try {
-            if(lookup.containsKey(filename) && !isDeleted.get(filename)){
+            if(table.containsKey(filename) && !deletedFiles.get(filename)){
                 System.out.println("Lookup Successfull \n" +
                         "Master has "+ filename);
                 return true;
@@ -308,10 +304,10 @@ public class MasterQuery extends UnicastRemoteObject implements Master
     @Override
     public String getPath() throws IOException{
         try {
-            int size = peers.size();
+            int size = allPeers.size();
             int item = new Random().nextInt(size);
             int i = 0;
-            for(String peer : peers)
+            for(String peer : allPeers)
             {
                 if (i == item)
                     return peer;
@@ -343,15 +339,15 @@ public class MasterQuery extends UnicastRemoteObject implements Master
 
     public Set<String> getPaths_RF(){
         try {
-            int size = peers.size();
+            int size = allPeers.size();
             if(size<=this.replicaFactor){
-                return peers;
+                return allPeers;
             }
             Set<Integer> randomIntegers = getRandomNumbers(this.replicaFactor, size);
             Set<String> newPeers = new HashSet<>();
             for(int randomIndex : randomIntegers){
                 int i = 0;
-                for(String peer : peers){
+                for(String peer : allPeers){
                     if(i==randomIndex){
                         newPeers.add(peer);
                     }
@@ -369,7 +365,7 @@ public class MasterQuery extends UnicastRemoteObject implements Master
     public List<String> getPaths(String filename) throws RemoteException{
         try {
             if(hasFile(filename)){
-                Set<String> setOfPaths = lookup.get(filename);
+                Set<String> setOfPaths = table.get(filename);
                 List<String> paths = new ArrayList<>(setOfPaths);
                 return paths;
             }
@@ -383,8 +379,8 @@ public class MasterQuery extends UnicastRemoteObject implements Master
     public int registerPeer(String peerData) throws IOException{
         try {
             if(peerData!=null && peerData!="") {
-                if(!peers.contains(peerData)){
-                    peers.add(peerData);
+                if(!allPeers.contains(peerData)){
+                    allPeers.add(peerData);
                     return 1;
                 } else {
                     return 0;
@@ -403,12 +399,12 @@ public class MasterQuery extends UnicastRemoteObject implements Master
             @Override
             public void run() {
                 try {
-                    for(String fileName : lookup.keySet()){
-                        for(String peerPath : lookup.get(fileName)){
+                    for(String fileName : table.keySet()){
+                        for(String peerPath : table.get(fileName)){
                             // connect with server
                             FileDistributedSystem peerServer =
                                     (FileDistributedSystem)Naming.lookup(peerPath);
-                            String fileData = peerServer.readFile(AESEncryption.encrypt(fileName, secretKeys.get(fileName)));
+                            String fileData = peerServer.readFile(AESEncryption.encrypt(fileName, keys.get(fileName)));
                             if(fileData==null){
                                 System.out.println("Malicious activity detected in the Master Server......");
                                 System.out.println("Exiting......");
@@ -443,73 +439,73 @@ interface Master extends Remote{
 }
 
 
-interface Permissions {
+interface FilePermissons {
 
-    public boolean canRead(String IP);
-    public boolean canWrite(String IP);
-    public boolean canDelete(String IP);
+    public void setReadPermissions(String IP);
+    public void setWritePermissions(String IP);
+    public void setDeletePermissions(String IP);
 
-    public void setRead(String IP);
-    public void setWrite(String IP);
-    public void setDelete(String IP);
+    public boolean revokeReadPermission(String IP);
+    public boolean revokeWritePermission(String IP);
+    public boolean revokeDeletePermission(String IP);
 
-    public boolean revokeRead(String IP);
-    public boolean revokeWrite(String IP);
-    public boolean revokeDelete(String IP);
+    public boolean canReadPermission(String IP);
+    public boolean canWritePermission(String IP);
+    public boolean canDeletePermission(String IP);
 
 }
 
-class PermissionsImpl implements Permissions {
-    public String filePath;
-    public Set<String> read;
-    public Set<String> write;
-    public Set<String> delete;
+class FilePermissionsImpl implements FilePermissons {
+    public String file;
+    public Set<String> readPermissions;
+    public Set<String> writePermissions;
+    public Set<String> deletePermissions;
 
-    public PermissionsImpl(String filepath){
-        this.filePath = filepath;
-        this.read = new HashSet<>();
-        this.write = new HashSet<>();
-        this.delete = new HashSet<>();
+    public FilePermissionsImpl(String filepath){
+        this.file = filepath;
+        this.readPermissions = new HashSet<>();
+        this.writePermissions = new HashSet<>();
+        this.deletePermissions = new HashSet<>();
     }
 
-    public PermissionsImpl(String filePath, String uri){
+    public FilePermissionsImpl(String filePath, String uri){
         this(filePath);
-        this.read.add(uri);
-        this.write.add(uri);
-        this.delete.add(uri);
+        this.readPermissions.add(uri);
+        this.writePermissions.add(uri);
+        this.deletePermissions.add(uri);
     }
 
     @Override
-    public boolean canRead(String IP) {
-        return read.contains(IP);
+    public boolean canReadPermission(String IP) {
+        return readPermissions.contains(IP);
     }
 
     @Override
-    public boolean canWrite(String IP) {
-        return write.contains(IP);
+    public boolean canWritePermission(String IP) {
+        return writePermissions.contains(IP);
     }
 
     @Override
-    public boolean canDelete(String IP) {
-        return delete.contains(IP);
+    public boolean canDeletePermission(String IP) {
+        return deletePermissions.contains(IP);
     }
 
     @Override
-    public void setRead(String IP) { this.read.add(IP); }
+    public void setReadPermissions(String IP) { this.readPermissions.add(IP); }
 
     @Override
-    public void setWrite(String IP) { this.write.add(IP); }
+    public void setWritePermissions(String IP) { this.writePermissions.add(IP); }
 
     @Override
-    public void setDelete(String IP) { this.delete.add(IP); }
+    public void setDeletePermissions(String IP) { this.deletePermissions.add(IP); }
 
     @Override
-    public boolean revokeRead(String IP) { return this.read.remove(IP);  }
+    public boolean revokeReadPermission(String IP) { return this.readPermissions.remove(IP);  }
 
     @Override
-    public boolean revokeWrite(String IP) { return this.write.remove(IP); }
+    public boolean revokeWritePermission(String IP) { return this.writePermissions.remove(IP); }
 
     @Override
-    public boolean revokeDelete(String IP) { return this.delete.remove(IP); }
+    public boolean revokeDeletePermission(String IP) { return this.deletePermissions.remove(IP); }
 }
 
