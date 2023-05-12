@@ -51,6 +51,7 @@ public class CentralServerImpl extends UnicastRemoteObject implements CentralSer
         keys = new HashMap<>();
         Properties prop = new Properties();
         peerRSAPublicKey = new HashMap<>();
+        maliciousCheck();
         //Reading each property value
         //this.replicaFactor = Integer.parseInt(prop.getProperty("REPLICA_FACTOR"));
         this.replicaFactor = 3;
